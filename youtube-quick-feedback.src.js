@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube — быстрый фидбек
 // @namespace    https://www.youtube.com/
-// @version      1.0.6
+// @version      1.0.7
 // @description  Добавляет к рекомендациям YouTube кнопки «Не интересует» и «Не рекомендовать канал».
 // @match        https://www.youtube.com/*
 // @run-at       document-idle
@@ -182,9 +182,13 @@
   }, true);
 
   body.querySelectorAll(CARD).forEach(decorate);
+  body.addEventListener("transitionend", flushWaiters, true);
+  body.addEventListener("animationend", flushWaiters, true);
   new MutationObserver(records => {
+    flushWaiters();
     const cards = new Set();
     for (const { target, addedNodes, attributeName } of records) {
+      if (attributeName === "class" || attributeName === "style") continue;
       if (target.nodeType === 1 && target.closest(".yqf-panel")) continue;
       const card = target.nodeType === 1 && target.closest(CARD);
       if (card) cards.add(card);
@@ -194,6 +198,5 @@
       }
     }
     cards.forEach(decorate);
-    flushWaiters();
-  }).observe(body, { childList: true, subtree: true, attributes: true, attributeFilter: ["href", "hidden", "aria-hidden"] });
+  }).observe(body, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ["href", "hidden", "aria-hidden", "class", "style"] });
 })();
