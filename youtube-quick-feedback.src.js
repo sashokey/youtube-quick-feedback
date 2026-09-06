@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube Quick Feedback
 // @namespace    https://www.youtube.com/
-// @version      1.0.10
+// @version      1.0.11
 // @description  Adds native-style "Not interested" and "Don't recommend channel" buttons to YouTube recommendations.
 // @match        https://www.youtube.com/*
 // @run-at       document-idle
@@ -168,7 +168,26 @@
       button.dataset.action = action;
       button.title = labels[0];
       button.setAttribute("aria-label", labels[0]);
-      button.innerHTML = `<div class="ytSpecButtonShapeNextIcon ytSpecButtonShapeNextElevatedContent" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="${ICONS[action]}"></path></svg></div><yt-touch-feedback-shape aria-hidden="true" class="ytSpecTouchFeedbackShapeHost ytSpecTouchFeedbackShapeOverlayTouchResponseInverse"><div class="ytSpecTouchFeedbackShapeStroke"></div><div class="ytSpecTouchFeedbackShapeFill"></div></yt-touch-feedback-shape>`;
+      const icon = document.createElement("div");
+      icon.className = "ytSpecButtonShapeNextIcon ytSpecButtonShapeNextElevatedContent";
+      icon.setAttribute("aria-hidden", "true");
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.setAttribute("viewBox", "0 0 24 24");
+      svg.setAttribute("focusable", "false");
+      svg.setAttribute("aria-hidden", "true");
+      const path = document.createElementNS(svg.namespaceURI, "path");
+      path.setAttribute("d", ICONS[action]);
+      svg.append(path);
+      icon.append(svg);
+      const feedback = document.createElement("yt-touch-feedback-shape");
+      feedback.className = "ytSpecTouchFeedbackShapeHost ytSpecTouchFeedbackShapeOverlayTouchResponseInverse";
+      feedback.setAttribute("aria-hidden", "true");
+      for (const part of ["Stroke", "Fill"]) {
+        const layer = document.createElement("div");
+        layer.className = "ytSpecTouchFeedbackShape" + part;
+        feedback.append(layer);
+      }
+      button.append(icon, feedback);
       newPanel.append(button);
     });
 
