@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         YouTube — быстрый фидбек
+// @name         YouTube Quick Feedback
 // @namespace    https://www.youtube.com/
-// @version      1.0.7
-// @description  Добавляет к рекомендациям YouTube кнопки «Не интересует» и «Не рекомендовать канал».
+// @version      1.0.10
+// @description  Adds native-style "Not interested" and "Don't recommend channel" buttons to YouTube recommendations.
 // @match        https://www.youtube.com/*
 // @run-at       document-idle
 // @noframes
@@ -16,23 +16,27 @@
 
   const CARD = "ytd-rich-item-renderer, ytd-video-renderer, ytd-compact-video-renderer, yt-lockup-view-model.ytd-item-section-renderer";
   const THUMBNAIL = "a.ytLockupViewModelContentImage, a#thumbnail";
-  const MENU = ".ytLockupMetadataViewModelMenuButton button, ytd-menu-renderer button, #menu button, button[aria-label='Ещё'], button[aria-label='Action menu']";
+  const MENU = ".ytLockupMetadataViewModelMenuButton button, ytd-menu-renderer button, #menu button, button[aria-label='\u0415\u0449\u0451'], button[aria-label='Action menu']";
   const ITEM = "ytd-menu-service-item-renderer, tp-yt-paper-item, [role='menuitem']";
   const POPUP = "ytd-menu-popup-renderer, yt-sheet-view-model, [role='menu']";
+  const OVERLAY = "yt-thumbnail-hover-overlay-toggle-actions-view-model button, ytd-thumbnail-overlay-toggle-button-renderer";
+  const BUTTON = "ytSpecButtonShapeNextHost ytSpecButtonShapeNextTonal ytSpecButtonShapeNextOverlayDark ytSpecButtonShapeNextSizeS ytSpecButtonShapeNextIconButton ytSpecButtonShapeNextOverrideSmallSizeIcon ytSpecButtonShapeNextEnableBackdropFilterExperiment ytSpecButtonShapeNextMainstageIconSize ytSpecButtonShapeNextMainstagePadding";
+  const ICONS = [
+    "M12 1C5.925 1 1 5.925 1 12s4.925 11 11 11 11-4.925 11-11S18.075 1 12 1Zm0 2a9 9 0 018.246 12.605L4.755 6.661A8.99 8.99 0 0112 3ZM3.754 8.393l15.491 8.944A9 9 0 013.754 8.393Z",
+    "M12 1C5.925 1 1 5.925 1 12s4.925 11 11 11 11-4.925 11-11S18.075 1 12 1Zm0 2a9 9 0 110 18.001A9 9 0 0112 3Zm4 8H8a1 1 0 000 2h8a1 1 0 000-2Z"
+  ];
   const html = document.documentElement;
   const body = document.body;
-  const ACTIONS = {
-    ru: [["Не интересует"], ["Не рекомендовать видео с этого канала", "Не рекомендовать канал"]],
-    en: [["Not interested"], ["Don't recommend channel"]]
-  }[(html.lang || navigator.language).split("-")[0].toLowerCase()];
-  if (!ACTIONS) return;
+  if (!/^(en|ru)(-|$)/i.test(html.lang || navigator.language)) return;
+  const ACTIONS = [["Not interested", "\u041d\u0435 \u0438\u043d\u0442\u0435\u0440\u0435\u0441\u0443\u0435\u0442"], ["Don't recommend channel", "\u041d\u0435 \u0440\u0435\u043a\u043e\u043c\u0435\u043d\u0434\u043e\u0432\u0430\u0442\u044c \u0432\u0438\u0434\u0435\u043e \u0441 \u044d\u0442\u043e\u0433\u043e \u043a\u0430\u043d\u0430\u043b\u0430", "\u041d\u0435 \u0440\u0435\u043a\u043e\u043c\u0435\u043d\u0434\u043e\u0432\u0430\u0442\u044c \u043a\u0430\u043d\u0430\u043b"]];
   const waiters = new Set();
   const flashes = new WeakMap();
   let busy = false;
   let interrupted = false;
   let activePanel;
+  let hoveredThumbnail;
 
-  GM_addStyle('.yqf-card{position:relative!important}html.yqf-menu-hidden :is(ytd-popup-container,tp-yt-iron-dropdown,ytd-menu-popup-renderer,yt-sheet-view-model,[role="menu"]){opacity:0!important;pointer-events:none!important}.yqf-panel{position:absolute;z-index:999;top:8px;left:8px;display:flex;flex-direction:column;align-items:flex-start;gap:5px;pointer-events:none;font-family:Roboto,Arial,sans-serif;opacity:0;visibility:hidden;transition:opacity .12s,visibility 0s linear .12s}.yqf-card:has(a.ytLockupViewModelContentImage:hover,a#thumbnail:hover) .yqf-panel,.yqf-panel:hover{opacity:1;visibility:visible;transition-delay:0s}.yqf-panel[hidden]{display:none}.yqf-button{box-sizing:border-box;border:1px solid rgb(255 255 255/14%);border-radius:18px;color:#f1f1f1;background:rgb(15 15 15/72%);box-shadow:0 1px 3px rgb(0 0 0/35%);cursor:pointer;pointer-events:auto;opacity:.4;white-space:nowrap;transition:opacity .12s,transform 60ms}.yqf-button[data-action="0"]{height:35px;padding:0 15px;font-size:13px;font-weight:500}.yqf-button[data-action="1"]{height:25px;padding:0 9px;font-size:10px;background:rgb(15 15 15/62%)}.yqf-button:hover{opacity:1}.yqf-button:active{transform:scale(.97)}@media(hover:none){.yqf-card .yqf-panel{opacity:1;visibility:visible;transition-delay:0s}}');
+  GM_addStyle('.yqf-card{position:relative!important}html.yqf-menu-hidden :is(ytd-popup-container,tp-yt-iron-dropdown,ytd-menu-popup-renderer,yt-sheet-view-model,[role="menu"]){opacity:0!important;pointer-events:none!important}.yqf-panel{position:absolute;z-index:999;display:flex;flex-direction:column;gap:4px;pointer-events:none;opacity:0;visibility:hidden;transition:opacity .12s,visibility 0s linear .12s}.yqf-card:has(a.ytLockupViewModelContentImage:hover,a#thumbnail:hover) .yqf-panel,.yqf-card:focus-within .yqf-panel,.yqf-panel:hover{opacity:1;visibility:visible;transition-delay:0s}.yqf-panel[hidden]{display:none}:where(.yqf-button){position:relative;display:flex;align-items:center;justify-content:center;box-sizing:border-box;width:32px;height:32px;border:0;border-radius:50%;color:#fff;background:rgb(0 0 0/30%);backdrop-filter:blur(8px)}.yqf-button{padding:0;cursor:pointer;pointer-events:auto}.yqf-button svg{display:block;width:24px;height:24px;fill:currentColor;pointer-events:none;filter:drop-shadow(0 1px 4px rgb(0 0 0/30%))}.yqf-button:focus-visible{outline:2px solid #fff;outline-offset:2px}.yqf-button[data-unavailable]::after{content:attr(title);position:absolute;right:calc(100% + 8px);padding:6px 8px;border-radius:4px;background:rgb(33 33 33/95%);color:#fff;font:12px Roboto,Arial,sans-serif;white-space:nowrap}@media(hover:none){.yqf-card .yqf-panel{opacity:1;visibility:visible;transition-delay:0s}}');
 
   const normalize = text => text.replace(/\s+/g, " ").trim().toLowerCase();
   const visible = element => element.getClientRects().length && getComputedStyle(element).visibility !== "hidden";
@@ -73,9 +77,13 @@
 
   function flash(button) {
     clearTimeout(flashes.get(button));
-    button.textContent = "Недоступно";
+    button.title = "Unavailable";
+    button.setAttribute("aria-label", button.title);
+    button.dataset.unavailable = "";
     flashes.set(button, setTimeout(() => {
-      button.textContent = ACTIONS[button.dataset.action][0];
+      button.title = ACTIONS[button.dataset.action][0];
+      button.setAttribute("aria-label", button.title);
+      delete button.dataset.unavailable;
       flashes.delete(button);
     }, 1200));
   }
@@ -135,7 +143,7 @@
     const panel = card.querySelector(".yqf-panel");
     const thumbnail = card.querySelector(THUMBNAIL);
 
-    if (!thumbnail) {
+    if (!thumbnail || /^\/feed\/history\/?$/.test(location.pathname) || card.closest('ytd-browse[page-subtype="history"]')) {
       panel?.remove();
       card.classList.remove("yqf-card");
       return;
@@ -144,6 +152,7 @@
     if (panel) {
       const hidden = !visible(thumbnail);
       if (panel !== activePanel && panel.hidden !== hidden) panel.hidden = hidden;
+      if (!panel.hidden) position(panel, thumbnail);
       return;
     }
 
@@ -155,14 +164,63 @@
     ACTIONS.forEach((labels, action) => {
       const button = document.createElement("button");
       button.type = "button";
-      button.className = "yqf-button";
+      button.className = "yqf-button " + BUTTON;
       button.dataset.action = action;
-      button.title = button.textContent = labels[0];
+      button.title = labels[0];
+      button.setAttribute("aria-label", labels[0]);
+      button.innerHTML = `<div class="ytSpecButtonShapeNextIcon ytSpecButtonShapeNextElevatedContent" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="${ICONS[action]}"></path></svg></div><yt-touch-feedback-shape aria-hidden="true" class="ytSpecTouchFeedbackShapeHost ytSpecTouchFeedbackShapeOverlayTouchResponseInverse"><div class="ytSpecTouchFeedbackShapeStroke"></div><div class="ytSpecTouchFeedbackShapeFill"></div></yt-touch-feedback-shape>`;
       newPanel.append(button);
     });
 
     (thumbnail.closest(".ytLockupViewModelHost") || card).append(newPanel);
+    if (!newPanel.hidden) position(newPanel, thumbnail);
   }
+
+  function position(panel, thumbnail) {
+    const host = panel.offsetParent;
+    if (!host) return;
+    const bounds = host.getBoundingClientRect();
+    const thumb = thumbnail.getBoundingClientRect();
+    const size = panel.firstElementChild.getBoundingClientRect().width || 32;
+    let left = thumb.right - bounds.left - size - 4;
+    let top = thumb.top - bounds.top + 4;
+    for (const control of thumbnail.querySelectorAll(OVERLAY)) {
+      const rect = control.getBoundingClientRect();
+      if (!rect.width || !rect.height) continue;
+      left = rect.right - bounds.left - size;
+      top = Math.max(top, rect.bottom - bounds.top + 4);
+    }
+    const x = left + "px";
+    const y = top + "px";
+    if (panel.style.left !== x) panel.style.left = x;
+    if (panel.style.top !== y) panel.style.top = y;
+  }
+
+  const resize = new ResizeObserver(() => {
+    const panel = hoveredThumbnail?.closest(CARD)?.querySelector(".yqf-panel");
+    if (panel) position(panel, hoveredThumbnail);
+  });
+
+  function hover(event) {
+    const card = event.target.closest?.(CARD);
+    const thumbnail = card?.querySelector(THUMBNAIL);
+    const panel = card?.querySelector(".yqf-panel");
+    if (!panel || !thumbnail) return;
+    if (thumbnail !== hoveredThumbnail) {
+      resize.disconnect();
+      hoveredThumbnail = thumbnail;
+      resize.observe(thumbnail);
+    }
+    position(panel, thumbnail);
+  }
+
+  document.addEventListener("pointerover", hover, true);
+  document.addEventListener("focusin", hover, true);
+  document.addEventListener("yt-navigate-finish", () => {
+    resize.disconnect();
+    hoveredThumbnail = undefined;
+    body.querySelectorAll(CARD).forEach(decorate);
+  });
 
   const scan = (root, cards) => {
     const card = root.closest(CARD);
@@ -192,11 +250,11 @@
       if (target.nodeType === 1 && target.closest(".yqf-panel")) continue;
       const card = target.nodeType === 1 && target.closest(CARD);
       if (card) cards.add(card);
-      else if (attributeName === "hidden") scan(target, cards);
+      else if (attributeName === "hidden" || attributeName === "page-subtype") scan(target, cards);
       for (const node of addedNodes) {
         if (node.nodeType === 1) scan(node, cards);
       }
     }
     cards.forEach(decorate);
-  }).observe(body, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ["href", "hidden", "aria-hidden", "class", "style"] });
+  }).observe(body, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ["href", "hidden", "aria-hidden", "class", "style", "page-subtype"] });
 })();
