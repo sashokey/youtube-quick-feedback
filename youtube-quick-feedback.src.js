@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube Quick Feedback
 // @namespace    https://www.youtube.com/
-// @version      1.0.11
+// @version      1.0.12
 // @description  Adds native-style "Not interested" and "Don't recommend channel" buttons to YouTube recommendations.
 // @match        https://www.youtube.com/*
 // @run-at       document-idle
@@ -199,7 +199,7 @@
     const host = panel.offsetParent;
     if (!host) return;
     const bounds = host.getBoundingClientRect();
-    const thumb = thumbnail.getBoundingClientRect();
+    const thumb = (thumbnail.querySelector("yt-thumbnail-view-model") || thumbnail).getBoundingClientRect();
     const size = panel.firstElementChild.getBoundingClientRect().width || 32;
     let left = thumb.right - bounds.left - size - 4;
     let top = thumb.top - bounds.top + 4;
