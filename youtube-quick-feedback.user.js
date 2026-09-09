@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube Quick Feedback
 // @namespace    https://www.youtube.com/
-// @version      1.0.13
+// @version      1.0.14
 // @description  Adds native-style "Not interested" and "Don't recommend channel" buttons to YouTube recommendations.
 // @match        https://www.youtube.com/*
 // @run-at       document-idle
